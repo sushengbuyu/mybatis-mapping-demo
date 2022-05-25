@@ -1,8 +1,15 @@
-# mybatis-mapping-demo
-> mybatis 多表关联自定义注解实现
+
 ### 一、需求
 
-目前使用的ORM框架是Mybatis Plus，是Mybatis的增强框架，基础的CRUD的方法都集成了，开发起来很是方便。但是项目中总是需要多表关联查询，而Mybatis的多表关联是需要在xml文件中配置对应的resultMap和关联标签，使用起来很不方便。JPA倒是有多表关联的注解实现，但是不想再引入另一个ORM框架。
+目前使用的ORM框架是Mybatis Plus，是Mybatis的增强框架，基础的CRUD的方法都集成了，开发起来很是方便。但是项目中总是需要多表关联查询。
+
+Mybatis的多表关联有两种
+
+一、在Mapper中使用@Result @One @Many注解
+
+二、在xml文件中配置对应的resultMap和关联标签
+
+使用起来很不方便。JPA倒是有多表关联的注解实现，但是不想再引入另一个ORM框架。
 
 目前的需求是增强现有的查询，使用简单的注解即可实现多表关联。
 
@@ -46,7 +53,6 @@ public @interface MapTo {
     /**
      * 嵌套处理
      * 为true时，如果映射的对象类中有映射字段，也执行映射操作
-     * TODO
      */
     boolean doDeep() default false;
 }
@@ -114,6 +120,8 @@ public interface DualMapper {
 ##### DoMapAspect
 > 切面处理类，核心代码，执行映射操作
 ```java
+package sushengbuyu.maptodemo.aop;
+
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.ClassUtil;
 import cn.hutool.core.util.ReUtil;
@@ -128,6 +136,7 @@ import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+
 import javax.annotation.PostConstruct;
 import java.lang.reflect.Field;
 import java.util.*;
@@ -217,16 +226,8 @@ public class DoMapAspect {
             }
             // 获取映射类
             Class<?> c = doMap.targetClass();
-            if (relObj instanceof Collection) {
-                // 集合
-                Collection<?> co = (Collection<?>) relObj;
-                for (Object o : co) {
-                    doMapping(c, o);
-                }
-            } else {
-                // 单个对象
-                doMapping(c, relObj);
-            }
+            // 映射处理
+            doMapping(c, relObj);
         } catch (Exception e) {
             log.error("映射异常", e);
         }
@@ -235,6 +236,19 @@ public class DoMapAspect {
     }
 
     private void doMapping(Class<?> c, Object obj) throws Exception {
+        if (obj instanceof Collection) {
+            // 集合
+            Collection<?> co = (Collection<?>) obj;
+            for (Object o : co) {
+                mapping(c, o);
+            }
+        } else {
+            // 单个对象
+            mapping(c, obj);
+        }
+    }
+
+    private void mapping(Class<?> c, Object obj) throws Exception {
         // 判断是否有映射关系
         if (MAPPING.containsKey(c)) {
             log.info("处理映射类：{}", c.getName());
@@ -266,7 +280,7 @@ public class DoMapAspect {
                     // 集合对象
                     if (results.size() > 0) {
                         v = results.stream()
-                                .map(r -> mapToBean(results.get(0), mapTo.targetClass()))
+                                .map(r -> mapToBean(r, mapTo.targetClass()))
                                 .collect(Collectors.toList());
                     }
                 } else {
@@ -277,6 +291,9 @@ public class DoMapAspect {
                         // 转换结果，赋值
                         v = mapToBean(results.get(0), mapTo.targetClass());
                     }
+                }
+                if (v != null && mapTo.doDeep()) {
+                    doMapping(mapTo.targetClass(), v);
                 }
                 f.set(obj, v);
             }
@@ -338,13 +355,19 @@ public class SysUser implements Serializable {
      */
     private String nickName;
 
-    @MapTo(targetClass = SysRole.class, sql = "SELECT * FROM sys_role WHERE user_id=${id}")
+    
+    @MapTo(targetClass = SysRole.class
+            , doDeep = true
+            , sql = "SELECT * FROM sys_role WHERE user_id=${id}")
     @TableField(exist = false)
     private SysRole sysRole;
 
-    @MapTo(targetClass = SysRole.class, sql = "SELECT * FROM sys_role WHERE user_id=${id}")
+    @MapTo(targetClass = SysRole.class
+            , doDeep = true
+            , sql = "SELECT * FROM sys_role WHERE user_id=${id}")
     @TableField(exist = false)
     private List<SysRole> roleList;
+
 
     public Long getId() {
         return id;
@@ -409,12 +432,18 @@ public class SysUser implements Serializable {
 ```
 ##### SysRole
 ```java
+package sushengbuyu.maptodemo.sys.po;
+
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
+import sushengbuyu.maptodemo.aop.MapTo;
+
+import java.util.List;
 import java.util.StringJoiner;
 
 /**
  * @author victor
- * @desc 系统角色
+ * @desc 说明
  * @date 2022/5/23
  */
 public class SysRole {
@@ -423,6 +452,13 @@ public class SysRole {
     private Long id;
     private Long userId;
     private String name;
+
+    @MapTo(targetClass = SysPermission.class
+            , sql = "SELECT p.* FROM sys_permission p " +
+            "LEFT JOIN sys_role_permission rp ON p.id = rp.perm_id " +
+            "WHERE rp.role_id = ${id}")
+    @TableField(exist = false)
+    private List<SysPermission> permissionList;
 
     public String getName() {
         return name;
@@ -448,12 +484,74 @@ public class SysRole {
         this.userId = userId;
     }
 
+    public List<SysPermission> getPermissionList() {
+        return permissionList;
+    }
+
+    public void setPermissionList(List<SysPermission> permissionList) {
+        this.permissionList = permissionList;
+    }
+
     @Override
     public String toString() {
         return new StringJoiner(", ", SysRole.class.getSimpleName() + "[", "]")
                 .add("id=" + id)
                 .add("userId=" + userId)
                 .add("name='" + name + "'")
+                .toString();
+    }
+}
+```
+##### SysPermission
+
+```java
+package sushengbuyu.maptodemo.sys.po;
+
+import java.util.StringJoiner;
+
+/**
+ * @author victor
+ * @desc 说明
+ * @date 2022/5/25
+ */
+public class SysPermission {
+
+    private Long id;
+
+    private String name;
+
+    private Integer type;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public Integer getType() {
+        return type;
+    }
+
+    public void setType(Integer type) {
+        this.type = type;
+    }
+
+    @Override
+    public String toString() {
+        return new StringJoiner(", ", SysPermission.class.getSimpleName() + "[", "]")
+                .add("id=" + id)
+                .add("name='" + name + "'")
+                .add("type=" + type)
                 .toString();
     }
 }
@@ -537,6 +635,12 @@ class DoMapTests {
 
 ![image.png](https://p1-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/19d6b5fd0f1248fe8dbc751a207f0e53~tplv-k3u1fbpfcp-watermark.image?)
 
+![image.png](https://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/eb966e49f87a4d12a300722ba3c5181a~tplv-k3u1fbpfcp-watermark.image?)
+
+![image.png](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/c20a0ee77b284a1594e7beb96a0f094e~tplv-k3u1fbpfcp-watermark.image?)
+
+
+
 ###### 测试结果
 single
 
@@ -545,14 +649,33 @@ single
     "nickName": "aa11",
     "roleList": [
         {
+            "permissionList": [
+                {
+                    "type": 0,
+                    "name": "add",
+                    "id": 1
+                },
+                {
+                    "type": 0,
+                    "name": "query",
+                    "id": 2
+                }
+            ],
             "userId": 1,
             "name": "r1",
             "id": 11
         },
         {
+            "permissionList": [
+                {
+                    "type": 0,
+                    "name": "del",
+                    "id": 3
+                }
+            ],
             "userId": 1,
-            "name": "r1",
-            "id": 11
+            "name": "r2",
+            "id": 12
         }
     ],
     "password": "123456",
@@ -568,14 +691,33 @@ list
         "nickName": "aa11",
         "roleList": [
             {
+                "permissionList": [
+                    {
+                        "type": 0,
+                        "name": "add",
+                        "id": 1
+                    },
+                    {
+                        "type": 0,
+                        "name": "query",
+                        "id": 2
+                    }
+                ],
                 "userId": 1,
                 "name": "r1",
                 "id": 11
             },
             {
+                "permissionList": [
+                    {
+                        "type": 0,
+                        "name": "del",
+                        "id": 3
+                    }
+                ],
                 "userId": 1,
-                "name": "r1",
-                "id": 11
+                "name": "r2",
+                "id": 12
             }
         ],
         "password": "123456",
@@ -606,50 +748,69 @@ page
 
 ```json
 {
-    "optimizeCountSql": true,
-    "records": [
+  "optimizeCountSql": true,
+  "records": [
+    {
+      "nickName": "aa11",
+      "roleList": [
         {
-            "nickName": "aa11",
-            "roleList": [
-                {
-                    "userId": 1,
-                    "name": "r1",
-                    "id": 11
-                },
-                {
-                    "userId": 1,
-                    "name": "r1",
-                    "id": 11
-                }
-            ],
-            "password": "123456",
-            "id": 1,
-            "username": "a1"
+          "permissionList": [
+            {
+              "type": 0,
+              "name": "add",
+              "id": 1
+            },
+            {
+              "type": 0,
+              "name": "query",
+              "id": 2
+            }
+          ],
+          "userId": 1,
+          "name": "r1",
+          "id": 11
         },
         {
-            "sysRole": {
-                "userId": 2,
-                "name": "r3",
-                "id": 13
-            },
-            "nickName": "aa22",
-            "roleList": [
-                {
-                    "userId": 2,
-                    "name": "r3",
-                    "id": 13
-                }
-            ],
-            "password": "123456",
-            "id": 2,
-            "username": "a2"
+          "permissionList": [
+            {
+              "type": 0,
+              "name": "del",
+              "id": 3
+            }
+          ],
+          "userId": 1,
+          "name": "r2",
+          "id": 12
         }
-    ],
-    "searchCount": true,
-    "total": 0,
-    "current": 1,
-    "size": 10,
-    "orders": [
-    ]
+      ],
+      "password": "123456",
+      "id": 1,
+      "username": "a1"
+    },
+    {
+      "sysRole": {
+        "userId": 2,
+        "name": "r3",
+        "id": 13
+      },
+      "nickName": "aa22",
+      "roleList": [
+        {
+          "userId": 2,
+          "name": "r3",
+          "id": 13
+        }
+      ],
+      "password": "123456",
+      "id": 2,
+      "username": "a2"
+    }
+  ],
+  "searchCount": true,
+  "total": 0,
+  "current": 1,
+  "size": 10,
+  "orders": [
+  ]
 }
 ```

@@ -104,16 +104,8 @@ public class DoMapAspect {
             }
             // 获取映射类
             Class<?> c = doMap.targetClass();
-            if (relObj instanceof Collection) {
-                // 集合
-                Collection<?> co = (Collection<?>) relObj;
-                for (Object o : co) {
-                    doMapping(c, o);
-                }
-            } else {
-                // 单个对象
-                doMapping(c, relObj);
-            }
+            // 映射处理
+            doMapping(c, relObj);
         } catch (Exception e) {
             log.error("映射异常", e);
         }
@@ -122,6 +114,19 @@ public class DoMapAspect {
     }
 
     private void doMapping(Class<?> c, Object obj) throws Exception {
+        if (obj instanceof Collection) {
+            // 集合
+            Collection<?> co = (Collection<?>) obj;
+            for (Object o : co) {
+                mapping(c, o);
+            }
+        } else {
+            // 单个对象
+            mapping(c, obj);
+        }
+    }
+
+    private void mapping(Class<?> c, Object obj) throws Exception {
         // 判断是否有映射关系
         if (MAPPING.containsKey(c)) {
             log.info("处理映射类：{}", c.getName());
@@ -153,7 +158,7 @@ public class DoMapAspect {
                     // 集合对象
                     if (results.size() > 0) {
                         v = results.stream()
-                                .map(r -> mapToBean(results.get(0), mapTo.targetClass()))
+                                .map(r -> mapToBean(r, mapTo.targetClass()))
                                 .collect(Collectors.toList());
                     }
                 } else {
@@ -164,6 +169,9 @@ public class DoMapAspect {
                         // 转换结果，赋值
                         v = mapToBean(results.get(0), mapTo.targetClass());
                     }
+                }
+                if (v != null && mapTo.doDeep()) {
+                    doMapping(mapTo.targetClass(), v);
                 }
                 f.set(obj, v);
             }

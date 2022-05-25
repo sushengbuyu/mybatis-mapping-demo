@@ -1,7 +1,10 @@
 package sushengbuyu.maptodemo.sys.po;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
+import sushengbuyu.maptodemo.aop.MapTo;
 
+import java.util.List;
 import java.util.StringJoiner;
 
 /**
@@ -15,6 +18,13 @@ public class SysRole {
     private Long id;
     private Long userId;
     private String name;
+
+    @MapTo(targetClass = SysPermission.class
+            , sql = "SELECT p.* FROM sys_permission p " +
+            "LEFT JOIN sys_role_permission rp ON p.id = rp.perm_id " +
+            "WHERE rp.role_id = ${id}")
+    @TableField(exist = false)
+    private List<SysPermission> permissionList;
 
     public String getName() {
         return name;
@@ -38,6 +48,14 @@ public class SysRole {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public List<SysPermission> getPermissionList() {
+        return permissionList;
+    }
+
+    public void setPermissionList(List<SysPermission> permissionList) {
+        this.permissionList = permissionList;
     }
 
     @Override

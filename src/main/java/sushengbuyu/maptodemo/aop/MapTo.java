@@ -23,7 +23,6 @@ public @interface MapTo {
 
     /**
      * 为true时，如果映射的对象类中有映射字段，也执行映射操作
-     * TODO
      */
     boolean doDeep() default false;
 }

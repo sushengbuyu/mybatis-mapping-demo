@@ -35,11 +35,15 @@ public class SysUser implements Serializable {
      */
     private String nickName;
 
-    @MapTo(targetClass = SysRole.class, sql = "SELECT * FROM sys_role WHERE user_id=${id}")
+    @MapTo(targetClass = SysRole.class
+            , doDeep = true
+            , sql = "SELECT * FROM sys_role WHERE user_id=${id}")
     @TableField(exist = false)
     private SysRole sysRole;
 
-    @MapTo(targetClass = SysRole.class, sql = "SELECT * FROM sys_role WHERE user_id=${id}")
+    @MapTo(targetClass = SysRole.class
+            , doDeep = true
+            , sql = "SELECT * FROM sys_role WHERE user_id=${id}")
     @TableField(exist = false)
     private List<SysRole> roleList;
 

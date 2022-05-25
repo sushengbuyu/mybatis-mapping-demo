@@ -37,9 +37,9 @@ public class DoMapAspect {
      */
     private static final Map<Class<?>, Set<String>> MAPPING = new HashMap<>(8);
 
-    private final DualMapper dualMapper;
+    private final IDualMapper dualMapper;
 
-    public DoMapAspect(DualMapper dualMapper) {
+    public DoMapAspect(IDualMapper dualMapper) {
         this.dualMapper = dualMapper;
     }
 

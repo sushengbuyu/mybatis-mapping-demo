@@ -1,25 +1,14 @@
 package sushengbuyu.maptodemo.aop;
 
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
-
 import java.util.List;
 import java.util.Map;
 
 /**
  * @author victor
- * @desc 虚拟Mapper
+ * @desc 虚拟Mapper,具体实现由使用者实现
  * @date 2022/5/23
  */
-@Mapper
-public interface DualMapper {
+public interface IDualMapper {
 
-    /**
-     * 执行自定义SQL
-     * @param sql sql
-     * @return List<Map<String, Object>>
-     */
-    @Select("${sql}")
-    List<Map<String, Object>> executeSql(@Param("sql") String sql);
+    List<Map<String, Object>> executeSql(String sql);
 }

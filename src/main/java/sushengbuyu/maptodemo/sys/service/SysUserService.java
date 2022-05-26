@@ -34,7 +34,7 @@ public class SysUserService extends ServiceImpl<SysUserMapper, SysUser> {
     /**
      * 从Page中取records作为处理对象
      */
-    @DoMap(targetClass = SysUser.class, spel = "records")
+    @DoMap(targetClass = SysUser.class, spel = "#records")
     public Page<SysUser> page() {
         QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
         Page<SysUser> p = new Page<>(1, 10);

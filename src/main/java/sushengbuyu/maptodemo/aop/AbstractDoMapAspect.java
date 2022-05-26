@@ -1,19 +1,14 @@
 package sushengbuyu.maptodemo.aop;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.lang.Dict;
 import cn.hutool.core.util.ClassUtil;
 import cn.hutool.core.util.ReUtil;
-import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.annotation.Around;
-import org.aspectj.lang.annotation.Aspect;
-import org.aspectj.lang.annotation.Pointcut;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.expression.Expression;
-import org.springframework.expression.ExpressionParser;
-import org.springframework.expression.spel.standard.SpelExpressionParser;
-import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.extra.expression.ExpressionEngine;
+import cn.hutool.extra.expression.engine.spel.SpELEngine;
+import cn.hutool.log.Log;
+import cn.hutool.log.LogFactory;
 
 import javax.annotation.PostConstruct;
 import java.lang.reflect.Field;
@@ -25,11 +20,9 @@ import java.util.stream.Collectors;
  * @desc 自定义关联映射切面
  * @date 2022/5/23
  */
-@Component
-@Aspect
-public class DoMapAspect {
+public abstract class AbstractDoMapAspect {
 
-    private final static Logger log = LoggerFactory.getLogger(DoMapAspect.class);
+    protected static final Log log = LogFactory.get();
     /**
      * 保存MapTo映射关系
      * key 映射字段所在类
@@ -39,9 +32,11 @@ public class DoMapAspect {
 
     private final IDualMapper dualMapper;
 
-    public DoMapAspect(IDualMapper dualMapper) {
+    public AbstractDoMapAspect(IDualMapper dualMapper) {
         this.dualMapper = dualMapper;
     }
+
+    public abstract String getMapScan();
 
     /**
      * 初始化映射关系
@@ -52,7 +47,7 @@ public class DoMapAspect {
     public void initMap() {
         // 初始化所有MapTo对象
         // 扫描所有类
-        Set<Class<?>> classes = ClassUtil.scanPackage("sushengbuyu.maptodemo");
+        Set<Class<?>> classes = ClassUtil.scanPackage(getMapScan());
         int totalField = 0;
         // 找出使用MapTo注解的对象
         for (Class<?> c : classes) {
@@ -77,30 +72,20 @@ public class DoMapAspect {
     }
 
     /**
-     * 切点
-     * @param doMap 执行映射注解
-     */
-    @Pointcut("@annotation(doMap)")
-    public void point(DoMap doMap){}
-
-    /**
      * 处理关联映射
-     * @param point 切点
+     * @param obj 处理对象
      * @param doMap 映射处理配置
      * @return Object
-     * @throws Throwable 异常
      */
-    @Around(value = "@annotation(doMap)")
-    public Object doMap(ProceedingJoinPoint point, DoMap doMap) throws Throwable {
+    public Object doMap(Object obj, DoMap doMap) {
         // 执行切面方法
-        Object obj = point.proceed();
         try {
             Object relObj = obj;
-            if (StringUtils.hasLength(doMap.spel())) {
+            if (!StrUtil.isEmpty(doMap.spel())) {
                 // 如果使用了SPEL表达式，则从返回值中获取处理对象
-                ExpressionParser parser = new SpelExpressionParser();
-                Expression expression = parser.parseExpression(doMap.spel());
-                relObj = expression.getValue(obj);
+                Dict dict = Dict.parse(obj);
+                ExpressionEngine engine = new SpELEngine();
+                relObj = engine.eval(doMap.spel(), dict);
             }
             // 获取映射类
             Class<?> c = doMap.targetClass();

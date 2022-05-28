@@ -78,6 +78,9 @@ public abstract class AbstractDoMapAspect {
      * @return Object
      */
     public Object doMap(Object obj, DoMap doMap) {
+        if (obj == null) {
+            return null;
+        }
         // 执行切面方法
         try {
             Object relObj = obj;
@@ -89,8 +92,10 @@ public abstract class AbstractDoMapAspect {
             }
             // 获取映射类
             Class<?> c = doMap.targetClass();
-            // 映射处理
-            doMapping(c, relObj);
+            if (relObj != null) {
+                // 映射处理
+                doMapping(c, relObj);
+            }
         } catch (Exception e) {
             log.error("映射异常", e);
         }

@@ -139,7 +139,14 @@ public abstract class AbstractDoMapAspect {
                     Field ff = obj.getClass().getDeclaredField(re.substring(2, re.length()-1));
                     ff.setAccessible(true);
                     Object o = ff.get(obj);
-                    sql = sql.replace(re, o.toString());
+                    if (o != null) {
+                        // 如果变量值不为空则替换
+                        sql = sql.replace(re, o.toString());
+                    }
+                }
+                if (sql.contains("#")) {
+                    // 有变量未替换则跳过该字段
+                    continue;
                 }
                 log.info("最终SQL：{}", sql);
                 List<Map<String, Object>> results = dualMapper.executeSql(sql);
